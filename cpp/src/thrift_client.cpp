@@ -1,5 +1,4 @@
 #include "Calculator.h"
-#include "calculator_types.h"
 
 #include <exception>
 #include <iostream>
