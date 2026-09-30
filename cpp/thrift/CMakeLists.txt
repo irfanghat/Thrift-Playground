@@ -16,20 +16,29 @@ find_library(
     REQUIRED
 )
 
+######################################
+# Apache Thrift library
+######################################
 if(NOT TARGET thrift::thrift)
+
     add_library(thrift::thrift UNKNOWN IMPORTED)
 
     set_target_properties(
         thrift::thrift
         PROPERTIES
-            IMPORTED_LOCATION "${THRIFT_LIBRARY}"
-            INTERFACE_INCLUDE_DIRECTORIES "${THRIFT_INCLUDE_DIR}"
+            IMPORTED_LOCATION
+                "${THRIFT_LIBRARY}"
+
+            INTERFACE_INCLUDE_DIRECTORIES
+                "${THRIFT_INCLUDE_DIR}"
     )
+
 endif()
 
 ######################################
-# Collect Thrift definitions
+# Thrift definitions
 ######################################
+
 set(
     THRIFT_SOURCE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../thrift"
@@ -37,53 +46,97 @@ set(
 
 file(
     GLOB THRIFT_FILES
+    CONFIGURE_DEPENDS
     "${THRIFT_SOURCE_DIR}/*.thrift"
 )
 
 if(NOT THRIFT_FILES)
+
     message(FATAL_ERROR
         "No .thrift files found in ${THRIFT_SOURCE_DIR}"
     )
+
 endif()
 
 ######################################
-# Generated output
+# Generated files
 ######################################
 set(
-    GEN_DIR
-    "${CMAKE_CURRENT_BINARY_DIR}/generated"
-)
-
-set(
     THRIFT_OUT_DIR
-    "${GEN_DIR}/gen-cpp"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/gen-cpp"
 )
 
-set(
-    THRIFT_GEN_DIR
+file(
+    MAKE_DIRECTORY
     "${THRIFT_OUT_DIR}"
 )
 
-file(MAKE_DIRECTORY "${THRIFT_OUT_DIR}")
+set(
+    GENERATED_THRIFT_CPP
+)
 
-set(GENERATED_THRIFT_FILES)
+set(
+    GENERATED_THRIFT_HEADERS
+)
 
-foreach(THRIFT_FILE ${THRIFT_FILES})
+######################################
+# Generate Thrift code
+######################################
+foreach(THRIFT_FILE IN LISTS THRIFT_FILES)
 
     get_filename_component(
-        FIL_WE
+        THRIFT_NAME
         "${THRIFT_FILE}"
         NAME_WE
     )
 
+    string(
+        SUBSTRING
+        "${THRIFT_NAME}"
+        0
+        1
+        THRIFT_FIRST_CHAR
+    )
+
+    string(
+        TOUPPER
+        "${THRIFT_FIRST_CHAR}"
+        THRIFT_FIRST_CHAR
+    )
+
+    string(
+        SUBSTRING
+        "${THRIFT_NAME}"
+        1
+        -1
+        THRIFT_REST
+    )
+
     set(
-        THRIFT_HEADER
-        "${THRIFT_GEN_DIR}/${FIL_WE}_types.h"
+        THRIFT_CLASS_NAME
+        "${THRIFT_FIRST_CHAR}${THRIFT_REST}"
+    )
+
+    set(
+        GENERATED_CPP
+        "${THRIFT_OUT_DIR}/${THRIFT_CLASS_NAME}.cpp"
+    )
+
+    set(
+        GENERATED_HEADER
+        "${THRIFT_OUT_DIR}/${THRIFT_CLASS_NAME}.h"
+    )
+
+    set(
+        GENERATED_TYPES_HEADER
+        "${THRIFT_OUT_DIR}/${THRIFT_NAME}_types.h"
     )
 
     add_custom_command(
         OUTPUT
-            "${THRIFT_HEADER}"
+            "${GENERATED_CPP}"
+            "${GENERATED_HEADER}"
+            "${GENERATED_TYPES_HEADER}"
 
         COMMAND
             "${THRIFT_EXECUTABLE}"
@@ -95,47 +148,45 @@ foreach(THRIFT_FILE ${THRIFT_FILES})
             "${THRIFT_FILE}"
 
         COMMENT
-            "Generating C++ Thrift files for ${FIL_WE}.thrift"
+            "Generating C++ Thrift files for ${THRIFT_NAME}.thrift"
 
         VERBATIM
     )
 
     list(
         APPEND
-        GENERATED_THRIFT_FILES
-        "${THRIFT_HEADER}"
+        GENERATED_THRIFT_CPP
+        "${GENERATED_CPP}"
+    )
+
+    list(
+        APPEND
+        GENERATED_THRIFT_HEADERS
+        "${GENERATED_HEADER}"
+        "${GENERATED_TYPES_HEADER}"
     )
 
 endforeach()
 
 ######################################
-# Generation target
+# Generated Thrift library
 ######################################
-add_custom_target(
-    generate-thrift
-    DEPENDS
-        ${GENERATED_THRIFT_FILES}
-)
-
-######################################
-# Thrift interface target
-######################################
-add_library(thrift-playground INTERFACE)
-
-add_dependencies(
+add_library(
     thrift-playground
-    generate-thrift
+    STATIC
+        ${GENERATED_THRIFT_CPP}
+        ${GENERATED_THRIFT_HEADERS}
 )
 
 target_include_directories(
     thrift-playground
-    INTERFACE
-        "${THRIFT_GEN_DIR}"
+    PUBLIC
+        "${THRIFT_OUT_DIR}"
         "${THRIFT_INCLUDE_DIR}"
 )
 
 target_link_libraries(
     thrift-playground
-    INTERFACE
+    PUBLIC
         thrift::thrift
 )
