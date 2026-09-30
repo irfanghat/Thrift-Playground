@@ -1,7 +1,5 @@
+#include "Calculator.h"
 #include <gtest/gtest.h>
-#include <string>
-#include <vector>
-#include "calculator_types.h"
 
 using namespace calculator;
 
